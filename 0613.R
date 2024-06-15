@@ -9,36 +9,57 @@ library(maxLik)
 ##노트북 용
 #klips_raw <- read.csv("C:/Users/USER/Desktop/24_1/ecn4003/Final_project/0613/0613_test_240613/0613_test_240613.csv")
 ##데스크탑 용
-klips_raw <- read.csv("C:/Users/wjddn/Desktop/ECN4003/Econometrics_Final-main/0614_2_240614.csv")
+klips_raw <- read.csv("C:/Users/wjddn/Desktop/ECN4003/Econometrics_Final-main/0615_240615.csv")
+
+
+
+#연령제한
+# 연령을 최대 49세로 제한
+klips <- klips_raw %>% filter(p_age <= 49 & p_age >= 19)
 
 
 
 # 종속 변수 = 결혼 경험 유무
-klips<- klips_raw %>% filter(!is.na(p_married))
 klips <- klips %>%
-  mutate(marry = ifelse(p_married == 1, 0, 1))
+  mutate(marry = ifelse(p_married <= 0, NA, p_married))
+klips <- klips %>% 
+  filter(!is.na(marry))
+klips <- klips %>%
+  mutate(marry = ifelse(marry == 1, 0, 1))
 
-
+summary(klips)
 
 # 독립 변수 시작 -------------------------------------------------------------
 #일자리 안정성 ---------------------------------------------------------------
 ###고용 안정성
-klips <- klips[!is.na(klips$p0601), ]
+klips <- klips %>%
+  mutate(S_stable_employment = ifelse(p0601 <= 0, NA, p0601))
+klips <- klips %>%
+  filter(!is.na(S_stable_employment))
 klips <- klips %>%
   mutate(S_stable_employment = ifelse(p0601 == 1, 1, 0))
 
 ###불규칙적 일자리
-klips <- klips[!is.na(klips$p0508), ]
+klips <- klips %>%
+  mutate(S_irregular_work = ifelse(p0508 <= 0, NA, p0508))
+klips <- klips %>%
+  filter(!is.na(S_irregular_work))
 klips <- klips %>%
   mutate(S_irregular_work = ifelse(p0508 == 1, 1, 0))
 
 ###근로시간의 규칙성
-klips <- klips[!is.na(klips$p1002), ]
+klips <- klips %>%
+  mutate(S_stable_work_time = ifelse(p1002 <= 0, NA, p1002))
+klips <- klips %>%
+  filter(!is.na(S_stable_work_time))
 klips <- klips %>%
   mutate(S_stable_work_time = ifelse(p1002 == 1, 1, 0))
 
 ### 초과근로여부
-klips <- klips[!is.na(klips$p1011), ]
+klips <- klips %>%
+  mutate(S_overtime_work = ifelse(p1011 <= 0, NA, p1011))
+klips <- klips %>%
+  filter(!is.na(S_overtime_work))
 klips <- klips %>%
   mutate(S_overtime_work = ifelse(p1011 == 2, 1, 0))
 
@@ -67,30 +88,27 @@ klips <- klips%>%
 # 모름이라고 답한 인원들을 NA처리 후 제거
 klips <- klips %>%
   mutate(annual_income = ifelse(p_wage <= 0, NA, p_wage))
-klips <- klips %>% filter(!is.na(annual_income))
-# 연간소득 하위 1%와 상위 1% 임계값 계산
+klips <- klips %>% 
+  filter(!is.na(annual_income))
+# 연간소득 하위 1%와 임계값 계산
 lower_bound <- quantile(klips$annual_income, 0.01)
-upper_bound <- quantile(klips$annual_income, 0.99)
 # 하위 1% 필터링
 klips <- klips %>%
   filter(annual_income >= lower_bound)
-
-#실질임금
+#실질임금 cpi적용
 klips <- klips %>%
   mutate(real_income = annual_income / (cpi / 100))
-
 #로그
 klips <- klips %>%
   mutate(M_log_income = log(real_income))
 
 
-
-
 ###성과급제여부
 # 모름이라고 답한 인원들을 NA처리 후 제거
 klips <- klips %>%
-  mutate(p1621 = ifelse(p1621 == 3, NA, p1621))
-klips <- klips %>% filter(!is.na(p1621))
+  mutate(M_Incentive_Program  = ifelse(p1621 <= 0, NA, p1621))
+klips <- klips %>%
+  filter(!is.na(M_Incentive_Program ))
 # p1621 값을 1인 사람 외에는 0으로 변환
 klips <- klips %>%
   mutate(M_Incentive_Program = ifelse(p1621 == 1, 1, 0))
@@ -145,13 +163,36 @@ klips <- klips %>% filter(!is.na(W_Child_care_support))
 klips <- klips %>%
   mutate(W_Child_care_support = ifelse(W_Child_care_support == 1, 1, 0))
 
+# 중복된 pid를 제외하고 고유한 pid의 수를 셈
+unique_pid_count <- klips %>%
+  distinct(pid) %>%
+  nrow()
+
+# 결과 출력
+print(unique_pid_count)
+
+
+# 예제 데이터 불러오기 (데이터를 'your_data'로 변경하세요)
+data <- klips
+
+# 각 pid별로 가장 높은 나이를 가진 행을 선택
+max_age_data <- data %>%
+  group_by(pid) %>%
+  filter(p_age == max(p_age)) %>%
+  ungroup()
+
+# 연령 분포 시각화
+ggplot(max_age_data, aes(x = p_age)) +
+  geom_histogram(binwidth = 1, fill = "blue", color = "black") +
+  labs(title = "PID별 가장 높은 나이의 연령 분포", x = "나이", y = "빈도") +
+  theme_minimal()
 
 
 
 # ---------------------------------------------------------------------------- #
 
 # 패널 로짓 분석 수행
-# 패널 데이터 설정
+# 패널 데이터 설정sd
 pdata <- pdata.frame(klips, index = c("pid", "year"))
 
 # 로짓 패널 모델 설정
